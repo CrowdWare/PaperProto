@@ -32,8 +32,11 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .width(280.dp)
                             .fillMaxHeight()
-                            .background(MaterialTheme.colorScheme.surface,  RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp
-                            ))
+                            .background(
+                                MaterialTheme.colorScheme.surface, RoundedCornerShape(
+                                    topEnd = 16.dp, bottomEnd = 16.dp
+                                )
+                            )
                             .padding(16.dp),
                         onOpenCamera = {
                             screenState = ScreenState.CameraView
@@ -51,13 +54,15 @@ class MainActivity : ComponentActivity() {
                             scope.launch { drawerState.open() }
                         }
                     )
+
                     ScreenState.CameraView -> CameraView(
                         onImageCaptured = { uri ->
                             Toast.makeText(this, "Image captured: $uri", Toast.LENGTH_SHORT).show()
                             screenState = ScreenState.PreviewMode
                         },
                         onError = { exception ->
-                            Toast.makeText(this, "Error: ${exception.message}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, "Error: ${exception.message}", Toast.LENGTH_SHORT)
+                                .show()
                         }
                     )
                 }
@@ -69,7 +74,8 @@ class MainActivity : ComponentActivity() {
     fun DrawerContent(
         modifier: Modifier = Modifier,
         onOpenCamera: () -> Unit,
-        onCloseDrawer: () -> Unit) {
+        onCloseDrawer: () -> Unit
+    ) {
         Column(
             modifier = modifier,
             verticalArrangement = Arrangement.Top,
@@ -78,7 +84,7 @@ class MainActivity : ComponentActivity() {
             Text(text = "PaperProto", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
             Button(onClick = onOpenCamera) {
-                Text("Open Camera")
+                Text("Take Picture")
             }
             /*Spacer(Modifier.height(8.dp))
             Button(onClick = onCloseDrawer) {
@@ -94,10 +100,17 @@ class MainActivity : ComponentActivity() {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Text(text = "You have not yet captured an image.", style = MaterialTheme.typography.bodyLarge)
-            LaunchedEffect(Unit) {
-                onOpenDrawer()
+            Column {
+                Text(text = "Welcome to PaperProto", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "The idea behind this app is to take pictures from your paper prototypes and use them as mockup.\nIf you mark a hotspot you are able to simulate a button when in preview mode. Clicking a button opens another picture.\n\nSo first step will be to take a picture.\nTo take a picture open the drawer by swiping from the left to the right and click on 'Take Picture'.",
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
+            //LaunchedEffect(Unit) {
+            //    onOpenDrawer()
+            //}
         }
     }
 }
