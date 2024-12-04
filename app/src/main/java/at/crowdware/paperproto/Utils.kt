@@ -22,9 +22,10 @@ fun loadPages(context: Context): List<Page> {
 }
 
 fun addNewPage(context: Context, imagePath: String, pages: MutableList<Page>) : Page {
+    val newId = (pages.maxOfOrNull { it.id } ?: 0) + 1
     val newPage = Page(
-        id = (pages.maxOfOrNull { it.id } ?: 0) + 1,
-        name = "Page ${pages.size + 1}",
+        id = newId,
+        name = "Page $newId",
         picture = imagePath
     )
     pages.add(newPage)
