@@ -4,18 +4,31 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,13 +45,15 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberImagePainter
-import kotlin.math.max
 
 @Composable
 fun ImageWithMultipleHotspots(
     page: Page,
-    onHotspotsChanged: (List<HotSpot>) -> Unit) {
-    
+    allPages: List<Page>,
+    isEditMode: Boolean,
+    onHotspotsChanged: (List<HotSpot>) -> Unit,
+    onHotspotClicked: (String) -> Unit = {}
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
             painter = rememberImagePainter(Uri.parse(page.picture)),
@@ -47,51 +62,68 @@ fun ImageWithMultipleHotspots(
         )
 
         page.hotSpots.forEachIndexed { index, hotspot ->
-            HotspotBox(
-                hotspot = hotspot,
-                onMove = { newPosition ->
-                    println("New position: $newPosition")
-                    val updatedHotspots = page.hotSpots.toMutableList().apply {
-                        this[index] = this[index].copy(
-                            x = newPosition.x.toInt(),
-                            y = newPosition.y.toInt()
-                        )
+            if (isEditMode) {
+                EditableHotspotBox(
+                    hotspot = hotspot,
+                    allPages = allPages,
+                    onMove = { newPosition ->
+                        println("New position: $newPosition")
+                        val updatedHotspots = page.hotSpots.toMutableList().apply {
+                            this[index] = this[index].copy(
+                                x = newPosition.x.toInt(),
+                                y = newPosition.y.toInt()
+                            )
+                        }
+                        onHotspotsChanged(updatedHotspots)
+                    },
+                    onResize = { newSize, offset ->
+                        val updatedHotspots = page.hotSpots.toMutableList().apply {
+                            this[index] = this[index].copy(
+                                x = offset.x.toInt(),
+                                y = offset.y.toInt(),
+                                width = newSize.width.toInt(),
+                                height = newSize.height.toInt()
+                            )
+                        }
+                        onHotspotsChanged(updatedHotspots)
+                    },
+                    onDelete = {
+                        val updatedHotspots = page.hotSpots.toMutableList().apply {
+                            removeAt(index)
+                        }
+                        onHotspotsChanged(updatedHotspots)
+                    },
+                    onLinkChanged = { newLink ->
+                        val updatedHotspots = page.hotSpots.toMutableList().apply {
+                            this[index] = this[index].copy(link = newLink)
+                        }
+                        onHotspotsChanged(updatedHotspots)
                     }
-                    onHotspotsChanged(updatedHotspots)
-                },
-                onResize = { newSize, offset ->
-                    val updatedHotspots = page.hotSpots.toMutableList().apply {
-                        this[index] = this[index].copy(
-                            x = offset.x.toInt(),
-                            y = offset.y.toInt(),
-                            width = max(newSize.width.toInt(), 50),  // Minimum width
-                            height = max(newSize.height.toInt(), 50) // Minimum height
-                        )
-                    }
-                    onHotspotsChanged(updatedHotspots)
-                },
-                onDelete = {
-                    val updatedHotspots = page.hotSpots.toMutableList().apply {
-                        removeAt(index)
-                    }
-                    onHotspotsChanged(updatedHotspots)
-                }
-            )
+                )
+            } else {
+                ClickableHotspotBox(
+                    hotspot = hotspot,
+                    onClick = { onHotspotClicked(hotspot.link) }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun HotspotBox(
+fun EditableHotspotBox(
     hotspot: HotSpot,
+    allPages: List<Page>,
     onMove: (Offset) -> Unit,
     onResize: (Size, Offset) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onLinkChanged: (String) -> Unit
 ) {
     var offsetX by remember { mutableStateOf(hotspot.x.toFloat()) }
     var offsetY by remember { mutableStateOf(hotspot.y.toFloat()) }
     var width by remember { mutableStateOf(hotspot.width.toFloat()) }
     var height by remember { mutableStateOf(hotspot.height.toFloat()) }
+    var showLinkDialog by remember { mutableStateOf(false) }
 
     // Update the state when hotspot changes
     LaunchedEffect(hotspot) {
@@ -99,6 +131,18 @@ fun HotspotBox(
         offsetY = hotspot.y.toFloat()
         width = hotspot.width.toFloat()
         height = hotspot.height.toFloat()
+    }
+
+    if (showLinkDialog) {
+        LinkDialog(
+            currentLink = hotspot.link,
+            allPages = allPages,
+            onDismiss = { showLinkDialog = false },
+            onLinkSelected = { 
+                onLinkChanged(it)
+                showLinkDialog = false
+            }
+        )
     }
 
     Box(
@@ -132,30 +176,24 @@ fun HotspotBox(
             )
         }
 
-        // Top-left resize handle
-        ResizeHandle(
+        // Link button in top-left corner
+        IconButton(
+            onClick = { showLinkDialog = true },
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        val newWidth = width - dragAmount.x
-                        val newHeight = height - dragAmount.y
-                        val newOffsetX = offsetX + dragAmount.x
-                        val newOffsetY = offsetY + dragAmount.y
-                        
-                        if (newWidth >= 50 && newHeight >= 50) {
-                            width = newWidth
-                            height = newHeight
-                            offsetX = newOffsetX
-                            offsetY = newOffsetY
-                            onResize(Size(width, height), Offset(offsetX, offsetY))
-                        }
-                    }
-                }
-        )
+                .size(24.dp)
+                .padding(2.dp)
+                .background(if (hotspot.link.isNotEmpty()) Color.Green else Color.Gray, CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Set Link",
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
+            )
+        }
 
-        // Bottom-left resize handle
+        // Resize handles (only bottom corners)
         ResizeHandle(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -176,7 +214,6 @@ fun HotspotBox(
                 }
         )
 
-        // Bottom-right resize handle
         ResizeHandle(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -195,6 +232,61 @@ fun HotspotBox(
                 }
         )
     }
+}
+
+@Composable
+fun ClickableHotspotBox(
+    hotspot: HotSpot,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .offset { IntOffset(hotspot.x, hotspot.y) }
+            .size(hotspot.width.dp, hotspot.height.dp)
+            .clickable(enabled = hotspot.link.isNotEmpty()) { onClick() }
+    )
+}
+
+@Composable
+fun LinkDialog(
+    currentLink: String,
+    allPages: List<Page>,
+    onDismiss: () -> Unit,
+    onLinkSelected: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Target Page") },
+        text = {
+            Column {
+                Text("Select the page this hotspot should link to:")
+                Spacer(modifier = Modifier.height(8.dp))
+                allPages.forEach { page ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onLinkSelected(page.id.toString()) }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = page.name,
+                            color = if (page.id.toString() == currentLink) Color.Blue else Color.Black
+                        )
+                        if (page.id.toString() == currentLink) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("(Selected)", color = Color.Blue)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 @Composable

@@ -23,10 +23,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CardElevation
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,14 +45,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.launch
-
 
 class MainActivity : ComponentActivity() {
 
@@ -64,6 +62,7 @@ class MainActivity : ComponentActivity() {
             var screenState by remember { mutableStateOf(ScreenState.PreviewMode) }
             val pages = remember { mutableStateListOf<Page>() }
             var currentPageId by remember { mutableStateOf<Int?>(null) }
+            var isEditMode by remember { mutableStateOf(true) }
             val context = LocalContext.current
 
             LaunchedEffect(Unit) {
@@ -88,12 +87,12 @@ class MainActivity : ComponentActivity() {
                         onOpenCamera = {
                             screenState = ScreenState.CameraView
                             scope.launch { drawerState.close() }
-                        }, onHotSpotAdd = {
+                        },
+                        onHotSpotAdd = {
                             val currentPage = pages.find { it.id == currentPageId }
                             currentPage?.let { page ->
                                 val pageIndex = pages.indexOfFirst { it.id == page.id }
                                 if (pageIndex != -1) {
-                                    // Create a new page instance with updated hotspots
                                     val updatedPage = page.copy(
                                         hotSpots = page.hotSpots.toMutableList().apply {
                                             add(HotSpot(10, 10, 100, 100, ""))
@@ -104,7 +103,12 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         },
-                        pages,
+                        onToggleMode = {
+                            isEditMode = !isEditMode
+                            scope.launch { drawerState.close() }
+                        },
+                        isEditMode = isEditMode,
+                        pages = pages,
                         onDelete = { page -> deletePage(context, page, pages)},
                         onShowImage = { page ->
                             currentPageId = page.id
@@ -122,13 +126,19 @@ class MainActivity : ComponentActivity() {
                                     scope.launch { drawerState.open() }
                                 },  
                                 page = page,
+                                allPages = pages,
+                                isEditMode = isEditMode,
                                 onHotspotsChanged = { newHotspots ->
                                     val pageIndex = pages.indexOfFirst { it.id == page.id }
                                     if (pageIndex != -1) {
-                                        // Create a new page instance with updated hotspots
                                         val updatedPage = page.copy(hotSpots = newHotspots.toMutableList())
                                         pages[pageIndex] = updatedPage
                                         savePages(context, pages)
+                                    }
+                                },
+                                onHotspotClicked = { linkId ->
+                                    if (!isEditMode && linkId.isNotEmpty()) {
+                                        currentPageId = linkId.toIntOrNull()
                                     }
                                 }
                             )
@@ -156,7 +166,9 @@ class MainActivity : ComponentActivity() {
         modifier: Modifier = Modifier,
         onOpenCamera: () -> Unit,
         onHotSpotAdd: () -> Unit,
-        pages: MutableList<Page>,
+        onToggleMode: () -> Unit,
+        isEditMode: Boolean,
+        pages: List<Page>,
         onDelete: (Page) -> Unit,
         onShowImage: (Page) -> Unit
     ) {
@@ -187,28 +199,46 @@ class MainActivity : ComponentActivity() {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Page name
                             Text(
                                 text = page.name,
                                 style = MaterialTheme.typography.bodyLarge
                             )
-                            // Delete button
-                            IconButton(onClick = { onDelete(page) }) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete Page"
-                                )
+                            if (isEditMode) {
+                                IconButton(onClick = { onDelete(page) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete Page"
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-            Button(onClick = onOpenCamera) {
-                Text("Take Picture")
+            if (isEditMode) {
+                Button(onClick = onOpenCamera) {
+                    Text("Take Picture")
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = onHotSpotAdd) {
+                    Text("Add Hotspot")
+                }
             }
             Spacer(Modifier.height(8.dp))
-            Button(onClick = onHotSpotAdd) {
-                Text("Add Hotspot")
+            Button(
+                onClick = onToggleMode,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (isEditMode) Icons.Default.PlayArrow else Icons.Default.Edit,
+                        contentDescription = if (isEditMode) "Switch to Preview" else "Switch to Edit"
+                    )
+                    Text(if (isEditMode) "Switch to Preview" else "Switch to Edit")
+                }
             }
         }
     }
@@ -217,7 +247,10 @@ class MainActivity : ComponentActivity() {
     fun PreviewModeScreen(
         onOpenDrawer: () -> Unit, 
         page: Page,
-        onHotspotsChanged: (List<HotSpot>) -> Unit
+        allPages: List<Page>,
+        isEditMode: Boolean,
+        onHotspotsChanged: (List<HotSpot>) -> Unit,
+        onHotspotClicked: (String) -> Unit
     ) {
         Box(
             Modifier
@@ -226,7 +259,10 @@ class MainActivity : ComponentActivity() {
             if (page != null) {
                 ImageWithMultipleHotspots(
                     page = page,
-                    onHotspotsChanged = onHotspotsChanged
+                    allPages = allPages,
+                    isEditMode = isEditMode,
+                    onHotspotsChanged = onHotspotsChanged,
+                    onHotspotClicked = onHotspotClicked
                 )
             } else {
                 Column (modifier = Modifier.fillMaxSize().padding(16.dp),
