@@ -45,6 +45,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberImagePainter
+import kotlin.math.max
 
 @Composable
 fun ImageWithMultipleHotspots(
@@ -193,33 +194,51 @@ fun EditableHotspotBox(
             )
         }
 
-        // Resize handles (only bottom corners)
+        // Left resize handle
+        var leftHandleStartX by remember { mutableStateOf(0f) }
+        var rightEdgeStartX by remember { mutableStateOf(0f) }
+        
         ResizeHandle(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            leftHandleStartX = offsetX
+                            rightEdgeStartX = offsetX + width
+                        }
+                    ) { change, dragAmount ->
                         change.consume()
-                        val newWidth = width - dragAmount.x
+                        // Move the left edge with the finger
+                        val newX = offsetX + dragAmount.x
+                        // Calculate new width based on distance to original right edge
+                        val newWidth = rightEdgeStartX - newX
                         val newHeight = height + dragAmount.y
-                        val newOffsetX = offsetX + dragAmount.x
                         
                         if (newWidth >= 50 && newHeight >= 50) {
+                            offsetX = newX
                             width = newWidth
                             height = newHeight
-                            offsetX = newOffsetX
                             onResize(Size(width, height), Offset(offsetX, offsetY))
                         }
                     }
                 }
         )
 
+        // Right resize handle
+        var leftEdgeStartX by remember { mutableStateOf(0f) }
+        
         ResizeHandle(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            leftEdgeStartX = offsetX
+                        }
+                    ) { change, dragAmount ->
                         change.consume()
+                        // Calculate new width based on handle position relative to left edge
                         val newWidth = width + dragAmount.x
                         val newHeight = height + dragAmount.y
                         
@@ -243,6 +262,12 @@ fun ClickableHotspotBox(
         modifier = Modifier
             .offset { IntOffset(hotspot.x, hotspot.y) }
             .size(hotspot.width.dp, hotspot.height.dp)
+            .background(
+                color = if (hotspot.link.isNotEmpty()) 
+                    Color(0x33007AFF) // Semi-transparent blue for linked hotspots
+                else 
+                    Color(0x33FF0000) // Semi-transparent red for unlinked hotspots
+            )
             .clickable(enabled = hotspot.link.isNotEmpty()) { onClick() }
     )
 }
