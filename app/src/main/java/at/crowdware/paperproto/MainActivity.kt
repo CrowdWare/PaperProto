@@ -63,13 +63,13 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             var screenState by remember { mutableStateOf(ScreenState.PreviewMode) }
             val pages = remember { mutableStateListOf<Page>() }
-            var currentPage by remember { mutableStateOf<Page?>(null) }
+            var currentPageId by remember { mutableStateOf<Int?>(null) }
             val context = LocalContext.current
 
             LaunchedEffect(Unit) {
                 val loadedPages = loadPages(context)
                 pages.addAll(loadedPages)
-                currentPage = loadedPages.firstOrNull()
+                currentPageId = loadedPages.firstOrNull()?.id
             }
 
             ModalNavigationDrawer(
@@ -89,10 +89,17 @@ class MainActivity : ComponentActivity() {
                             screenState = ScreenState.CameraView
                             scope.launch { drawerState.close() }
                         }, onHotSpotAdd = {
+                            val currentPage = pages.find { it.id == currentPageId }
                             currentPage?.let { page ->
                                 val pageIndex = pages.indexOfFirst { it.id == page.id }
                                 if (pageIndex != -1) {
-                                    pages[pageIndex].hotSpots.add(HotSpot(10, 10, 100, 100, ""))
+                                    // Create a new page instance with updated hotspots
+                                    val updatedPage = page.copy(
+                                        hotSpots = page.hotSpots.toMutableList().apply {
+                                            add(HotSpot(10, 10, 100, 100, ""))
+                                        }
+                                    )
+                                    pages[pageIndex] = updatedPage
                                     savePages(context, pages)
                                 }
                             }
@@ -100,40 +107,38 @@ class MainActivity : ComponentActivity() {
                         pages,
                         onDelete = { page -> deletePage(context, page, pages)},
                         onShowImage = { page ->
-                            // Find the page in the pages list to ensure we're using the latest version
-                            val pageIndex = pages.indexOfFirst { it.id == page.id }
-                            if (pageIndex != -1) {
-                                currentPage = pages[pageIndex]
-                            }
+                            currentPageId = page.id
+                            scope.launch { drawerState.close() }
                         }
                     )
                 }
             ) {
                 when (screenState) {
-                    ScreenState.PreviewMode -> currentPage?.let { currentPageValue ->
-                        PreviewModeScreen(
-                            onOpenDrawer = {
-                                scope.launch { drawerState.open() }
-                            },  
-                            page = currentPageValue,
-                            onHotspotsChanged = { newHotspots ->
-                                // Find and update the page in the pages list
-                                val pageIndex = pages.indexOfFirst { it.id == currentPageValue.id }
-                                if (pageIndex != -1) {
-                                    // Update the hotspots in the pages list
-                                    pages[pageIndex] = pages[pageIndex].copy(hotSpots = newHotspots.toMutableList())
-                                    // Update currentPage to reflect the changes
-                                    currentPage = pages[pageIndex]
-                                    // Save changes to persistent storage immediately
-                                    savePages(context, pages)
+                    ScreenState.PreviewMode -> {
+                        val currentPage = pages.find { it.id == currentPageId }
+                        currentPage?.let { page ->
+                            PreviewModeScreen(
+                                onOpenDrawer = {
+                                    scope.launch { drawerState.open() }
+                                },  
+                                page = page,
+                                onHotspotsChanged = { newHotspots ->
+                                    val pageIndex = pages.indexOfFirst { it.id == page.id }
+                                    if (pageIndex != -1) {
+                                        // Create a new page instance with updated hotspots
+                                        val updatedPage = page.copy(hotSpots = newHotspots.toMutableList())
+                                        pages[pageIndex] = updatedPage
+                                        savePages(context, pages)
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
 
                     ScreenState.CameraView -> CameraView(
                         onImageCaptured = { uri ->
-                            currentPage = addNewPage(context, uri.toString(), pages)
+                            val newPage = addNewPage(context, uri.toString(), pages)
+                            currentPageId = newPage.id
                             screenState = ScreenState.PreviewMode
                         },
                         onError = { exception ->

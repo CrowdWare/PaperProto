@@ -9,8 +9,13 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,6 +32,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberImagePainter
+import kotlin.math.max
 
 @Composable
 fun ImageWithMultipleHotspots(
@@ -53,12 +59,20 @@ fun ImageWithMultipleHotspots(
                     }
                     onHotspotsChanged(updatedHotspots)
                 },
-                onResize = { newSize ->
+                onResize = { newSize, offset ->
                     val updatedHotspots = page.hotSpots.toMutableList().apply {
                         this[index] = this[index].copy(
-                            width = newSize.width.toInt(),
-                            height = newSize.height.toInt()
+                            x = offset.x.toInt(),
+                            y = offset.y.toInt(),
+                            width = max(newSize.width.toInt(), 50),  // Minimum width
+                            height = max(newSize.height.toInt(), 50) // Minimum height
                         )
+                    }
+                    onHotspotsChanged(updatedHotspots)
+                },
+                onDelete = {
+                    val updatedHotspots = page.hotSpots.toMutableList().apply {
+                        removeAt(index)
                     }
                     onHotspotsChanged(updatedHotspots)
                 }
@@ -71,21 +85,26 @@ fun ImageWithMultipleHotspots(
 fun HotspotBox(
     hotspot: HotSpot,
     onMove: (Offset) -> Unit,
-    onResize: (Size) -> Unit
+    onResize: (Size, Offset) -> Unit,
+    onDelete: () -> Unit
 ) {
     var offsetX by remember { mutableStateOf(hotspot.x.toFloat()) }
     var offsetY by remember { mutableStateOf(hotspot.y.toFloat()) }
+    var width by remember { mutableStateOf(hotspot.width.toFloat()) }
+    var height by remember { mutableStateOf(hotspot.height.toFloat()) }
 
-    // Update the offset when hotspot changes
+    // Update the state when hotspot changes
     LaunchedEffect(hotspot) {
         offsetX = hotspot.x.toFloat()
         offsetY = hotspot.y.toFloat()
+        width = hotspot.width.toFloat()
+        height = hotspot.height.toFloat()
     }
 
     Box(
         modifier = Modifier
             .offset { IntOffset(offsetX.toInt(), offsetY.toInt()) }
-            .size(hotspot.width.dp, hotspot.height.dp)
+            .size(width.dp, height.dp)
             .border(2.dp, Color.Red, shape = RectangleShape)
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
@@ -96,15 +115,82 @@ fun HotspotBox(
                 }
             }
     ) {
-        // Resize handles (bottom-right)
-        Handle(
+        // Delete button in top-right corner
+        IconButton(
+            onClick = onDelete,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(24.dp)
+                .padding(2.dp)
+                .background(Color.Red, CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Delete Hotspot",
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        // Top-left resize handle
+        ResizeHandle(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        val newWidth = width - dragAmount.x
+                        val newHeight = height - dragAmount.y
+                        val newOffsetX = offsetX + dragAmount.x
+                        val newOffsetY = offsetY + dragAmount.y
+                        
+                        if (newWidth >= 50 && newHeight >= 50) {
+                            width = newWidth
+                            height = newHeight
+                            offsetX = newOffsetX
+                            offsetY = newOffsetY
+                            onResize(Size(width, height), Offset(offsetX, offsetY))
+                        }
+                    }
+                }
+        )
+
+        // Bottom-left resize handle
+        ResizeHandle(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        val newWidth = width - dragAmount.x
+                        val newHeight = height + dragAmount.y
+                        val newOffsetX = offsetX + dragAmount.x
+                        
+                        if (newWidth >= 50 && newHeight >= 50) {
+                            width = newWidth
+                            height = newHeight
+                            offsetX = newOffsetX
+                            onResize(Size(width, height), Offset(offsetX, offsetY))
+                        }
+                    }
+                }
+        )
+
+        // Bottom-right resize handle
+        ResizeHandle(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .size(16.dp)
                 .pointerInput(Unit) {
-                    detectTransformGestures { _, pan, _, _ ->
-                        val newSize = Size(hotspot.width + pan.x, hotspot.height + pan.y)
-                        onResize(newSize)
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        val newWidth = width + dragAmount.x
+                        val newHeight = height + dragAmount.y
+                        
+                        if (newWidth >= 50 && newHeight >= 50) {
+                            width = newWidth
+                            height = newHeight
+                            onResize(Size(width, height), Offset(offsetX, offsetY))
+                        }
                     }
                 }
         )
@@ -112,10 +198,11 @@ fun HotspotBox(
 }
 
 @Composable
-fun Handle(modifier: Modifier = Modifier) {
+fun ResizeHandle(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .background(Color.Gray, CircleShape)
-            .pointerInput(Unit) {}
+            .size(20.dp)
+            .padding(4.dp)
+            .background(Color.Blue.copy(alpha = 0.7f), CircleShape)
     )
 }
