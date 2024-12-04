@@ -120,8 +120,11 @@ class MainActivity : ComponentActivity() {
                                 // Find and update the page in the pages list
                                 val pageIndex = pages.indexOfFirst { it.id == currentPageValue.id }
                                 if (pageIndex != -1) {
-                                    pages[pageIndex].hotSpots.clear()
-                                    pages[pageIndex].hotSpots.addAll(newHotspots)
+                                    // Update the hotspots in the pages list
+                                    pages[pageIndex] = pages[pageIndex].copy(hotSpots = newHotspots.toMutableList())
+                                    // Update currentPage to reflect the changes
+                                    currentPage = pages[pageIndex]
+                                    // Save changes to persistent storage immediately
                                     savePages(context, pages)
                                 }
                             }
