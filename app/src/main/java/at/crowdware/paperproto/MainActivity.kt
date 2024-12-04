@@ -102,7 +102,6 @@ class MainActivity : ComponentActivity() {
                                     savePages(context, pages)
                                 }
                             }
-                            scope.launch { drawerState.close() }
                         },
                         onToggleMode = {
                             isEditMode = !isEditMode
