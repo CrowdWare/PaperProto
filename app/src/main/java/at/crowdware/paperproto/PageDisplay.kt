@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,8 +32,7 @@ import coil.compose.rememberImagePainter
 fun ImageWithMultipleHotspots(
     page: Page,
     onHotspotsChanged: (List<HotSpot>) -> Unit) {
-    var modifiedHotspots by remember(page) { mutableStateOf(page.hotSpots.toMutableList()) }
-
+    
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
             painter = rememberImagePainter(Uri.parse(page.picture)),
@@ -40,48 +40,59 @@ fun ImageWithMultipleHotspots(
             modifier = Modifier.fillMaxSize()
         )
 
-        modifiedHotspots.forEachIndexed { index, hotspot ->
+        page.hotSpots.forEachIndexed { index, hotspot ->
             HotspotBox(
                 hotspot = hotspot,
                 onMove = { newPosition ->
                     println("New position: $newPosition")
-                    // Ersetze die Liste mit einer aktualisierten Kopie
-                    modifiedHotspots = modifiedHotspots.toMutableList().apply {
+                    val updatedHotspots = page.hotSpots.toMutableList().apply {
                         this[index] = this[index].copy(
                             x = newPosition.x.toInt(),
                             y = newPosition.y.toInt()
                         )
                     }
-                    onHotspotsChanged(modifiedHotspots.toList())
+                    onHotspotsChanged(updatedHotspots)
                 },
                 onResize = { newSize ->
-                    modifiedHotspots = modifiedHotspots.toMutableList().apply {
+                    val updatedHotspots = page.hotSpots.toMutableList().apply {
                         this[index] = this[index].copy(
                             width = newSize.width.toInt(),
                             height = newSize.height.toInt()
                         )
                     }
-                    onHotspotsChanged(modifiedHotspots.toList())
+                    onHotspotsChanged(updatedHotspots)
                 }
             )
         }
     }
 }
+
 @Composable
 fun HotspotBox(
     hotspot: HotSpot,
     onMove: (Offset) -> Unit,
     onResize: (Size) -> Unit
 ) {
+    var offsetX by remember { mutableStateOf(hotspot.x.toFloat()) }
+    var offsetY by remember { mutableStateOf(hotspot.y.toFloat()) }
+
+    // Update the offset when hotspot changes
+    LaunchedEffect(hotspot) {
+        offsetX = hotspot.x.toFloat()
+        offsetY = hotspot.y.toFloat()
+    }
+
     Box(
         modifier = Modifier
-            .offset { IntOffset(hotspot.x, hotspot.y) }
+            .offset { IntOffset(offsetX.toInt(), offsetY.toInt()) }
             .size(hotspot.width.dp, hotspot.height.dp)
             .border(2.dp, Color.Red, shape = RectangleShape)
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
-                    onMove(Offset(hotspot.x + dragAmount.x, hotspot.y + dragAmount.y))
                     change.consume()
+                    offsetX += dragAmount.x
+                    offsetY += dragAmount.y
+                    onMove(Offset(offsetX, offsetY))
                 }
             }
     ) {

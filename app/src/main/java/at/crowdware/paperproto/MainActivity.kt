@@ -63,13 +63,13 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             var screenState by remember { mutableStateOf(ScreenState.PreviewMode) }
             val pages = remember { mutableStateListOf<Page>() }
-            val currentPage = remember { mutableStateOf<Page?>(null) }
+            var currentPage by remember { mutableStateOf<Page?>(null) }
             val context = LocalContext.current
 
             LaunchedEffect(Unit) {
                 val loadedPages = loadPages(context)
                 pages.addAll(loadedPages)
-                currentPage.value = loadedPages.firstOrNull()
+                currentPage = loadedPages.firstOrNull()
             }
 
             ModalNavigationDrawer(
@@ -89,31 +89,48 @@ class MainActivity : ComponentActivity() {
                             screenState = ScreenState.CameraView
                             scope.launch { drawerState.close() }
                         }, onHotSpotAdd = {
-                            if(currentPage.value != null) {
-                                currentPage.value!!.hotSpots.add(HotSpot(10, 10, 100, 100, ""))
-                                savePages(context, pages)
+                            currentPage?.let { page ->
+                                val pageIndex = pages.indexOfFirst { it.id == page.id }
+                                if (pageIndex != -1) {
+                                    pages[pageIndex].hotSpots.add(HotSpot(10, 10, 100, 100, ""))
+                                    savePages(context, pages)
+                                }
                             }
                         },
                         pages,
                         onDelete = { page -> deletePage(context, page, pages)},
                         onShowImage = { page ->
-                            currentPage.value = page
+                            // Find the page in the pages list to ensure we're using the latest version
+                            val pageIndex = pages.indexOfFirst { it.id == page.id }
+                            if (pageIndex != -1) {
+                                currentPage = pages[pageIndex]
+                            }
                         }
                     )
                 }
             ) {
                 when (screenState) {
-                    ScreenState.PreviewMode -> currentPage.value?.let {
+                    ScreenState.PreviewMode -> currentPage?.let { currentPageValue ->
                         PreviewModeScreen(
                             onOpenDrawer = {
                                 scope.launch { drawerState.open() }
-                            },  page = it
+                            },  
+                            page = currentPageValue,
+                            onHotspotsChanged = { newHotspots ->
+                                // Find and update the page in the pages list
+                                val pageIndex = pages.indexOfFirst { it.id == currentPageValue.id }
+                                if (pageIndex != -1) {
+                                    pages[pageIndex].hotSpots.clear()
+                                    pages[pageIndex].hotSpots.addAll(newHotspots)
+                                    savePages(context, pages)
+                                }
+                            }
                         )
                     }
 
                     ScreenState.CameraView -> CameraView(
                         onImageCaptured = { uri ->
-                            currentPage.value = addNewPage(context, uri.toString(), pages)
+                            currentPage = addNewPage(context, uri.toString(), pages)
                             screenState = ScreenState.PreviewMode
                         },
                         onError = { exception ->
@@ -147,7 +164,6 @@ class MainActivity : ComponentActivity() {
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 items(pages.size) { index ->
                     val page = pages[index]
-
 
                     Card(
                         modifier = Modifier
@@ -190,21 +206,20 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun PreviewModeScreen(onOpenDrawer: () -> Unit, page: Page) {
-        var hotSpotsState by remember { mutableStateOf(page.hotSpots.toMutableList()) }
-
+    fun PreviewModeScreen(
+        onOpenDrawer: () -> Unit, 
+        page: Page,
+        onHotspotsChanged: (List<HotSpot>) -> Unit
+    ) {
         Box(
             Modifier
                 .fillMaxSize()
         ) {
             if (page != null) {
                 ImageWithMultipleHotspots(
-                    page.copy(hotSpots = hotSpotsState),
-                    onHotspotsChanged = { newHotspots ->
-                        //page.hotSpots.clear()
-                        //page.hotSpots.addAll(newHotspots)
-                        hotSpotsState = newHotspots.toMutableList()
-                }   )
+                    page = page,
+                    onHotspotsChanged = onHotspotsChanged
+                )
             } else {
                 Column (modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.Center,
