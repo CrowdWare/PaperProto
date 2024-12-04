@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -37,11 +35,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberImagePainter
@@ -59,7 +59,8 @@ fun ImageWithMultipleHotspots(
         Image(
             painter = rememberImagePainter(Uri.parse(page.picture)),
             contentDescription = "Image with hotspots",
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
         )
 
         page.hotSpots.forEachIndexed { index, hotspot ->
@@ -194,25 +195,17 @@ fun EditableHotspotBox(
             )
         }
 
-        // Left resize handle
-        var leftHandleStartX by remember { mutableStateOf(0f) }
-        var rightEdgeStartX by remember { mutableStateOf(0f) }
-        
+        // Bottom-left resize handle
         ResizeHandle(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            leftHandleStartX = offsetX
-                            rightEdgeStartX = offsetX + width
-                        }
-                    ) { change, dragAmount ->
+                    detectDragGestures { change, dragAmount ->
                         change.consume()
-                        // Move the left edge with the finger
+                        // For left handle: increase width by same amount as x movement
                         val newX = offsetX + dragAmount.x
-                        // Calculate new width based on distance to original right edge
-                        val newWidth = rightEdgeStartX - newX
+                        val widthChange = -dragAmount.x
+                        val newWidth = width + widthChange
                         val newHeight = height + dragAmount.y
                         
                         if (newWidth >= 50 && newHeight >= 50) {
@@ -225,20 +218,13 @@ fun EditableHotspotBox(
                 }
         )
 
-        // Right resize handle
-        var leftEdgeStartX by remember { mutableStateOf(0f) }
-        
+        // Bottom-right resize handle
         ResizeHandle(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            leftEdgeStartX = offsetX
-                        }
-                    ) { change, dragAmount ->
+                    detectDragGestures { change, dragAmount ->
                         change.consume()
-                        // Calculate new width based on handle position relative to left edge
                         val newWidth = width + dragAmount.x
                         val newHeight = height + dragAmount.y
                         
