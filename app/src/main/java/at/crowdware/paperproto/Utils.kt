@@ -21,7 +21,7 @@ fun loadPages(context: Context): List<Page> {
     }
 }
 
-fun addNewPage(context: Context, imagePath: String, pages: MutableList<Page>) {
+fun addNewPage(context: Context, imagePath: String, pages: MutableList<Page>) : Page {
     val newPage = Page(
         id = (pages.maxOfOrNull { it.id } ?: 0) + 1,
         name = "Page ${pages.size + 1}",
@@ -29,6 +29,7 @@ fun addNewPage(context: Context, imagePath: String, pages: MutableList<Page>) {
     )
     pages.add(newPage)
     savePages(context, pages)
+    return newPage
 }
 
 fun deletePage(context: Context, page: Page, pages: MutableList<Page>) {

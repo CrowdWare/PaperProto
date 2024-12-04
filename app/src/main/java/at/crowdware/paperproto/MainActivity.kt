@@ -62,13 +62,14 @@ class MainActivity : ComponentActivity() {
             val drawerState = rememberDrawerState(DrawerValue.Closed)
             val scope = rememberCoroutineScope()
             var screenState by remember { mutableStateOf(ScreenState.PreviewMode) }
-            var imageUri by remember { mutableStateOf<Uri?>(null) }
             val pages = remember { mutableStateListOf<Page>() }
+            val currentPage = remember { mutableStateOf<Page?>(null) }
             val context = LocalContext.current
 
             LaunchedEffect(Unit) {
                 val loadedPages = loadPages(context)
                 pages.addAll(loadedPages)
+                currentPage.value = loadedPages.firstOrNull()
             }
 
             ModalNavigationDrawer(
@@ -87,27 +88,32 @@ class MainActivity : ComponentActivity() {
                         onOpenCamera = {
                             screenState = ScreenState.CameraView
                             scope.launch { drawerState.close() }
-                        }, pages,
+                        }, onHotSpotAdd = {
+                            if(currentPage.value != null) {
+                                currentPage.value!!.hotSpots.add(HotSpot(10, 10, 100, 100, ""))
+                                savePages(context, pages)
+                            }
+                        },
+                        pages,
                         onDelete = { page -> deletePage(context, page, pages)},
                         onShowImage = { page ->
-                            run {
-                                imageUri = Uri.parse(page.picture)
-                            }
+                            currentPage.value = page
                         }
                     )
                 }
             ) {
                 when (screenState) {
-                    ScreenState.PreviewMode -> PreviewModeScreen(
-                        onOpenDrawer = {
-                            scope.launch { drawerState.open() }
-                        }, imageUri = imageUri
-                    )
+                    ScreenState.PreviewMode -> currentPage.value?.let {
+                        PreviewModeScreen(
+                            onOpenDrawer = {
+                                scope.launch { drawerState.open() }
+                            },  page = it
+                        )
+                    }
 
                     ScreenState.CameraView -> CameraView(
                         onImageCaptured = { uri ->
-                            imageUri = uri
-                            addNewPage(context, uri.toString(), pages)
+                            currentPage.value = addNewPage(context, uri.toString(), pages)
                             screenState = ScreenState.PreviewMode
                         },
                         onError = { exception ->
@@ -124,6 +130,7 @@ class MainActivity : ComponentActivity() {
     fun DrawerContent(
         modifier: Modifier = Modifier,
         onOpenCamera: () -> Unit,
+        onHotSpotAdd: () -> Unit,
         pages: MutableList<Page>,
         onDelete: (Page) -> Unit,
         onShowImage: (Page) -> Unit
@@ -154,7 +161,7 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxWidth()
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween // Aligns items
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             // Page name
                             Text(
@@ -175,22 +182,29 @@ class MainActivity : ComponentActivity() {
             Button(onClick = onOpenCamera) {
                 Text("Take Picture")
             }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onHotSpotAdd) {
+                Text("Add Hotspot")
+            }
         }
     }
 
     @Composable
-    fun PreviewModeScreen(onOpenDrawer: () -> Unit, imageUri: Uri?) {
+    fun PreviewModeScreen(onOpenDrawer: () -> Unit, page: Page) {
+        var hotSpotsState by remember { mutableStateOf(page.hotSpots.toMutableList()) }
+
         Box(
             Modifier
                 .fillMaxSize()
         ) {
-            if (imageUri != null) {
-                androidx.compose.foundation.Image(
-                    painter = rememberAsyncImagePainter(imageUri),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+            if (page != null) {
+                ImageWithMultipleHotspots(
+                    page.copy(hotSpots = hotSpotsState),
+                    onHotspotsChanged = { newHotspots ->
+                        //page.hotSpots.clear()
+                        //page.hotSpots.addAll(newHotspots)
+                        hotSpotsState = newHotspots.toMutableList()
+                }   )
             } else {
                 Column (modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.Center,

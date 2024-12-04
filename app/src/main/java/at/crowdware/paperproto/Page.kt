@@ -8,7 +8,7 @@ data class Page(
     val id: Int,
     val name: String,
     val picture: String,
-    val hotSpots: List<HotSpot> = emptyList()
+    var hotSpots: MutableList<HotSpot> = mutableListOf()
 )
 
 @Serializable
