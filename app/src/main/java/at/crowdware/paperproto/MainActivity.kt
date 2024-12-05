@@ -120,8 +120,8 @@ class MainActivity : ComponentActivity() {
             ) {
                 when (screenState) {
                     ScreenState.PreviewMode -> {
-                        val currentPage = pages.find { it.id == currentPageId }
-                        currentPage?.let { page ->
+                        val page = pages.find { it.id == currentPageId }
+                        if (page != null) {
                             PreviewModeScreen(
                                 onOpenDrawer = {
                                     scope.launch { drawerState.open() }
@@ -143,6 +143,27 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
+                        } else {
+                            Column (modifier = Modifier.fillMaxSize().padding(16.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally){
+                                Text(text = "Welcome to PaperProto", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = "The idea behind this app is to take pictures from your paper prototypes and use them as an interactive mockup.\nIf you mark a hotspot you are able to simulate a button when in preview mode. Clicking a button opens another picture.\n\nSo first step will be to take a picture.\nTo take a picture open the drawer by swiping from the left to the right and click on 'Take Picture'.",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = "To add a hotspot also open the drawer by swiping from the left to the right and click on 'Add Hotspot'.\nThen you can drag the hotspot to the desired location and resize it and click on the plus button to select a page to link to.",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = "After linking the hotspots to the pages you can switch to preview mode by clicking on the 'Switch to Preview' button.\nThe rest should be self explanatory.\nEnjoy our app.",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
                         }
                     }
 
@@ -257,6 +278,7 @@ class MainActivity : ComponentActivity() {
             Modifier
                 .fillMaxSize()
         ) {
+            println("PreviewModeScreen: $page")
             if (page != null) {
                 ImageWithMultipleHotspots(
                     page = page,
@@ -265,17 +287,6 @@ class MainActivity : ComponentActivity() {
                     onHotspotsChanged = onHotspotsChanged,
                     onHotspotClicked = onHotspotClicked
                 )
-            } else {
-                Column (modifier = Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally){
-                    Text(text = "Welcome to PaperProto", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "The idea behind this app is to take pictures from your paper prototypes and use them as an interactive mockup.\nIf you mark a hotspot you are able to simulate a button when in preview mode. Clicking a button opens another picture.\n\nSo first step will be to take a picture.\nTo take a picture open the drawer by swiping from the left to the right and click on 'Take Picture'.",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
             }
         }
     }
