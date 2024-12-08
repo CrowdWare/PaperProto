@@ -8,3 +8,4 @@
 ## Nice to have
 - Hotspot rund/rechteckig
 - Blitzlicht
+- Export Funktion -> SML für NoCodeDesigner
